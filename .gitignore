@@ -1,0 +1,26 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyd
+*.so
+
+# Do not commit local config with real credentials
+config.py
+
+# Environments
+venv/
+.venv/
+
+# Distribution / Packaging
+.Python
+build/
+dist/
+*.egg-info/
+
+# Logs and Data
+*.log
+*.sqlite3
+
+# OS/Editor artifacts
+.DS_Store
+*~
