@@ -120,25 +120,43 @@ def throttle_flush_loop(mqtt_handler):
 # ---------------- RTL433 LOOP (UPDATED) ----------------
 def rtl_loop(radio_config: dict, mqtt_handler: HomeNodeMQTT, sys_id: str, sys_model: str) -> None:
     # Radio Config
-    device_id = radio_config.get("id", "0")
+    # If "id" is missing, we run in AUTO mode and let rtl_433 pick the first RTL-SDR.
+    device_id = radio_config.get("id")                   # None => AUTO
     frequency = radio_config.get("freq", "433.92M")
-    radio_name = radio_config.get("name", f"RTL_{device_id}")
     sample_rate = radio_config.get("rate", "250k")
-    
-    # CMD
-    cmd = [
-        "rtl_433", "-d", f":{device_id}", "-f", frequency, "-s", sample_rate,
-        "-F", "json", "-M", "time:iso", "-M", "protocol", "-M", "level",
+
+    # Label used for logs + status sensor
+    id_label = str(device_id) if device_id is not None else "auto"
+    radio_name = radio_config.get("name", f"RTL_{id_label}")
+
+    # Unique Status Field for this Radio (exposed as radio_status_auto, radio_status_101, etc.)
+    status_field = f"radio_status_{id_label}"
+
+    # Build rtl_433 command
+    cmd = ["rtl_433"]
+
+    # Only pin to a specific stick if an id is configured.
+    # In AUTO mode (device_id is None) we skip -d and let rtl_433 pick the default device.
+    if device_id is not None:
+        cmd += ["-d", f":{device_id}"]
+
+    cmd += [
+        "-f", frequency,
+        "-s", sample_rate,
+        "-F", "json",
+        "-M", "time:iso",
+        "-M", "protocol",
+        "-M", "level",
     ]
 
-    # Use System Name for the status sensor so it groups with CPU/RAM
+    # Use System Name so it groups with Computer
     sys_name = f"{sys_model} ({sys_id})"
 
     print(f"[RTL] Manager started for {radio_name}. Monitoring...")
 
     while True:
-        # 1. Announce "Scanning" using SYSTEM ID (Groups with Computer)
-        mqtt_handler.send_sensor(sys_id, "radio_status", "Scanning...", sys_name, sys_model, is_rtl=True)
+        # 1. Announce "Scanning" on the UNIQUE status field
+        mqtt_handler.send_sensor(sys_id, status_field, "Scanning...", sys_name, sys_model, is_rtl=True)
         time.sleep(2)
 
         proc = None
@@ -152,22 +170,22 @@ def rtl_loop(radio_config: dict, mqtt_handler: HomeNodeMQTT, sys_id: str, sys_mo
                 # --- ERROR DETECTION ---
                 if "usb_open error" in safe_line or "No supported devices" in safe_line:
                     print(f"[{radio_name}] Hardware missing!")
-                    mqtt_handler.send_sensor(sys_id, "radio_status", "No Device Found", sys_name, sys_model, is_rtl=True)
+                    mqtt_handler.send_sensor(sys_id, status_field, "No Device Found", sys_name, sys_model, is_rtl=True)
                 
                 elif "Kernel driver is active" in safe_line or "LIBUSB_ERROR_BUSY" in safe_line:
                     print(f"[{radio_name}] USB Busy/Driver Error!")
-                    mqtt_handler.send_sensor(sys_id, "radio_status", "Error: USB Busy", sys_name, sys_model, is_rtl=True)
+                    mqtt_handler.send_sensor(sys_id, status_field, "Error: USB Busy", sys_name, sys_model, is_rtl=True)
 
                 # --- VALID DATA ---
                 if safe_line.startswith("{") and safe_line.endswith("}"):
                     try:
                         data = json.loads(safe_line)
-                        # STATUS UPDATE: Online (Attached to System Device)
-                        mqtt_handler.send_sensor(sys_id, "radio_status", "Online", sys_name, sys_model, is_rtl=True)
+                        # STATUS UPDATE: Online (Unique Field)
+                        mqtt_handler.send_sensor(sys_id, status_field, "Online", sys_name, sys_model, is_rtl=True)
                     except:
                         continue
 
-                    # --- SENSOR PROCESSING (Standard Logic) ---
+                    # --- SENSOR PROCESSING ---
                     model = data.get("model", "Generic")
                     sid = data.get("id") or data.get("channel") or "unknown"
                     clean_id = clean_mac(sid)
@@ -225,11 +243,11 @@ def rtl_loop(radio_config: dict, mqtt_handler: HomeNodeMQTT, sys_id: str, sys_mo
             if proc: proc.wait()
             if proc.returncode != 0:
                 print(f"[{radio_name}] Process exited with code {proc.returncode}")
-                mqtt_handler.send_sensor(sys_id, "radio_status", "Error: Crashed", sys_name, sys_model, is_rtl=True)
+                mqtt_handler.send_sensor(sys_id, status_field, "Error: Crashed", sys_name, sys_model, is_rtl=True)
 
         except Exception as e:
             print(f"[{radio_name}] Exception: {e}")
-            mqtt_handler.send_sensor(sys_id, "radio_status", "Script Error", sys_name, sys_model, is_rtl=True)
+            mqtt_handler.send_sensor(sys_id, status_field, "Script Error", sys_name, sys_model, is_rtl=True)
 
         print(f"[{radio_name}] Retrying in 30 seconds...")
         time.sleep(30)

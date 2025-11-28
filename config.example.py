@@ -8,11 +8,14 @@ DESCRIPTION:
 """
 
 # --- RTL-SDR RADIO CONFIGURATION ---
-RTL_CONFIG = [
-    {"name": "Weather Radio", "id": "101", "freq": "433.92M", "rate": "250k"},
-    {"name": "Utility Radio", "id": "102", "freq": "912.6M",  "rate": "2400k"},
-    {"name": "Low-Freq Radio","id": "103", "freq": "315M",    "rate": "250k"},
-]
+RTL_CONFIG = []
+
+# Optional: multiple SDR's require serial number identifier: 
+# RTL_CONFIG = [
+#     {"name": "Weather Radio", "id": "101", "freq": "433.92M", "rate": "250k"},
+#     {"name": "Utility Radio", "id": "102", "freq": "912.6M",  "rate": "2400k"},
+#     {"name": "Low-Freq Radio","id": "103", "freq": "315M",    "rate": "250k"},
+# ]
 
 # Optional: list of keys to skip entirely when publishing
 SKIP_KEYS = [

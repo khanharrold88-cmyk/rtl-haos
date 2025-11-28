@@ -3,7 +3,7 @@
 FILE: mqtt_handler.py
 DESCRIPTION:
   Manages the connection to the MQTT Broker.
-  - UPDATED: Now tracks 'tracked_devices' (a set of all unique devices seen).
+  - UPDATED: Auto-detects 'radio_status' fields as Main Sensors (not diagnostic).
 """
 import json
 import threading
@@ -26,7 +26,6 @@ class HomeNodeMQTT:
 
         self.discovery_published = set()
         self.last_sent_values = {}
-        # NEW: Track unique physical devices seen
         self.tracked_devices = set()
         
         self.discovery_lock = threading.Lock()
@@ -60,18 +59,37 @@ class HomeNodeMQTT:
                 return
 
             default_meta = (None, "none", "mdi:eye", sensor_name.replace("_", " ").title())
-            meta = FIELD_META.get(sensor_name, default_meta)
+            
+            # --- 1. SMART METADATA LOOKUP ---
+            # If this is a dynamic radio status (e.g. radio_status_101),
+            # inherit the icon/settings from the base 'radio_status' entry.
+            if sensor_name.startswith("radio_status_"):
+                base_meta = FIELD_META.get("radio_status", default_meta)
+                unit, device_class, icon, base_friendly_name = base_meta
+                
+                # Append the suffix (ID) to the name
+                suffix = sensor_name.replace("radio_status_", "")
+                friendly_name = f"{base_friendly_name} {suffix}"
+            else:
+                # Standard lookup for normal sensors
+                meta = FIELD_META.get(sensor_name, default_meta)
+                try:
+                    unit, device_class, icon, friendly_name = meta
+                except ValueError:
+                    unit, device_class, icon, friendly_name = default_meta
 
-            try:
-                unit, device_class, icon, friendly_name = meta
-            except ValueError:
-                unit, device_class, icon, friendly_name = default_meta
+            # --- 2. CATEGORIZATION LOGIC ---
+            # Default: Everything is a Diagnostic sensor (hidden/separate menu)
+            entity_cat = "diagnostic"
 
-            # Whitelist Logic
+            # EXCEPTION A: Explicitly listed in config.MAIN_SENSORS
             if sensor_name in getattr(config, 'MAIN_SENSORS', []):
                 entity_cat = None 
-            else:
-                entity_cat = "diagnostic"
+            
+            # EXCEPTION B: It is a Radio Status field (Clean Fix)
+            # This ensures they are always visible without editing config.py
+            if sensor_name.startswith("radio_status"):
+                entity_cat = None
 
             payload = {
                 "name": friendly_name,
@@ -88,6 +106,8 @@ class HomeNodeMQTT:
 
             if unit: payload["unit_of_measurement"] = unit
             if device_class != "none": payload["device_class"] = device_class
+            
+            # Only add entity_category if it is NOT None (i.e., if it is diagnostic)
             if entity_cat: payload["entity_category"] = entity_cat
 
             if device_class in ["gas", "energy", "water", "monetary"]:
@@ -105,7 +125,6 @@ class HomeNodeMQTT:
     def send_sensor(self, sensor_id, field, value, device_name, device_model, is_rtl=True):
         if value is None: return
 
-        # NEW: Add to tracked devices list
         self.tracked_devices.add(device_name)
 
         clean_id = clean_mac(sensor_id) 
