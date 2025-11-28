@@ -61,8 +61,8 @@ The goal is a “drop-in” bridge: plug in RTL-SDR(s), run this script, and wat
 
 2.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/YOUR_USERNAME/rtl433-ha-bridge.git
-    cd rtl433-ha-bridge
+    git clone https://github.com/jaronmcd/rtl-haos.git
+    cd rtl-haos
     ```
 
 3.  **Install Python Libraries:**
@@ -136,8 +136,8 @@ After=network.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi/rtl433-2-haos
-ExecStart=/usr/bin/python3 /home/pi/rtl433-2-haos/rtl_mqtt_bridge.py
+WorkingDirectory=/home/pi/rtl-haos
+ExecStart=/usr/bin/python3 /home/pi/rtl-haos/rtl_mqtt_bridge.py
 Restart=always
 RestartSec=10
 
