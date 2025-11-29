@@ -10,7 +10,7 @@ import threading
 import sys
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
-
+from rich import print
 # Local imports
 import config
 from utils import clean_mac

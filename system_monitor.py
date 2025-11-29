@@ -11,7 +11,7 @@ import threading
 import sys
 import importlib.util
 import socket
-
+from rich import print
 # --- IMPORTS & DEPENDENCY CHECK ---
 PSUTIL_AVAILABLE = False
 try:

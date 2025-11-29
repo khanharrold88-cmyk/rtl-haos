@@ -14,6 +14,8 @@ import importlib.util
 import fnmatch
 import socket
 import statistics 
+from rich import print
+
 
 # --- PRE-FLIGHT DEPENDENCY CHECK ---
 def check_dependencies():
