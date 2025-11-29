@@ -34,15 +34,9 @@ It also functions as a **System Monitor**, reporting the host machine's health (
 ```mermaid
 graph TD
     subgraph "RF Devices (Airwaves)"
-<<<<<<< HEAD
         A(<b>Weather Station</b>) -->|433.92 MHz| D(<b>Antenna</b>)
         B(<b>Motion Sensor</b>) -->|315 MHz| D
         C(<b>Utility Meter</b>) -->|915 MHz| D
-=======
-        A[Weather Station] -->|433.92 MHz| D[Antenna]
-        B[Tire Sensor] -->|315 MHz| D
-        C[Utility Meter] -->|915 MHz| D
->>>>>>> 8f0d17b548b095e98ad7c46738cfd98da1d8e1a2
     end
 
     subgraph "Host Machine (Raspberry Pi/Linux)"
