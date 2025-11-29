@@ -6,9 +6,9 @@ FILE: field_meta.py
 
 FIELD_META = {
     # --- System Diagnostics (NEW: Configuration) ---
-    "sys_cfg_blacklist":    ("", "none", "mdi:playlist-remove", "Config: Blacklist"),
-    "sys_cfg_whitelist":    ("", "none", "mdi:playlist-check", "Config: Whitelist"),
-    "sys_cfg_sensors":      ("", "none", "mdi:eye-settings", "Config: Main Sensors"),
+    "sys_cfg_blacklist":    ("", "none", "mdi:playlist-remove", "Blacklist"),
+    "sys_cfg_whitelist":    ("", "none", "mdi:playlist-check", "Whitelist"),
+    "sys_cfg_sensors":      ("", "none", "mdi:eye-settings", "Main Sensors"),
 
     # --- System Diagnostics (Existing) ---
     "sys_device_count":     ("dev", "none", "mdi:counter", "Active Devices"),
@@ -40,10 +40,7 @@ FIELD_META = {
 
     # --- Air Quality ---
     "co2":                  ("ppm", "carbon_dioxide", "mdi:molecule-co2", "CO2 Level"),
-    "mics_vout":            ("V", "voltage", "mdi:flash", "MiCS Voltage"),
-    "mics_ratio":           ("ratio", "none", "mdi:gas-cylinder", "MiCS-5524 Ratio"),
-    "mq2_ratio":            ("ratio", "none", "mdi:fire", "MQ-2 Ratio"),
-
+    
     # --- Pressure ---
     "pressure_hpa":         ("hPa", "pressure", "mdi:gauge", "Pressure"),
     "pressure_inhg":        ("inHg", "pressure", "mdi:gauge", "Pressure"),
