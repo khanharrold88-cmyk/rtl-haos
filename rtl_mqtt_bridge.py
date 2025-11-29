@@ -14,6 +14,7 @@ import importlib.util
 import fnmatch
 import socket
 import statistics 
+import version # <--- NEW IMPORT
 from rich import print
 
 def cleanup_loop(mqtt_handler):
@@ -312,8 +313,7 @@ def rtl_loop(radio_config: dict, mqtt_handler: HomeNodeMQTT, sys_id: str, sys_mo
         time.sleep(30)
 
 def main():
-    print("--- RTL-MQTT BRIDGE + SYSTEM MONITOR STARTING ---")
-
+    print(f"--- RTL-MQTT BRIDGE v{version.__version__} STARTING ---") # <--- UPDATED
     mqtt_handler = HomeNodeMQTT()
     mqtt_handler.start()
 

@@ -11,6 +11,8 @@ import threading
 import sys
 import importlib.util
 import socket
+import version # <--- NEW IMPORT
+
 from rich import print
 # --- IMPORTS & DEPENDENCY CHECK ---
 PSUTIL_AVAILABLE = False
@@ -67,6 +69,7 @@ def system_stats_loop(mqtt_handler, DEVICE_ID, MODEL_NAME):
             dev_list_str = format_list_for_ha(devices) if count > 0 else "Scanning..."
 
             mqtt_handler.send_sensor(DEVICE_ID, "sys_device_count", count, device_name, MODEL_NAME, is_rtl=True)
+            mqtt_handler.send_sensor(DEVICE_ID, "sys_version", version.__version__, device_name, MODEL_NAME, is_rtl=True)
             # mqtt_handler.send_sensor(DEVICE_ID, "sys_device_list", dev_list_str, device_name, MODEL_NAME, is_rtl=True)
 
             # B. Configuration Lists (Sent as Diagnostics)

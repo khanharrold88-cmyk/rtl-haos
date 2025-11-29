@@ -16,6 +16,7 @@ from rich import print
 import config
 from utils import clean_mac
 from field_meta import FIELD_META
+import version  # <--- NEW IMPORT
 
 class HomeNodeMQTT:
     def __init__(self):
@@ -105,7 +106,8 @@ class HomeNodeMQTT:
                     "identifiers": [f"rtl433_{device_model}_{unique_id.split('_')[0]}"],
                     "manufacturer": "rtl_433",
                     "model": device_model,
-                    "name": device_name 
+                    "name": device_name,
+                    "sw_version": version.__version__  # <--- NEW: Adds version to Device Registry
                 },
                 "icon": icon,
             }

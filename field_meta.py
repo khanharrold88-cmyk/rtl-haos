@@ -23,7 +23,7 @@ FIELD_META = {
     "sys_disk":             ("%", "none", "mdi:harddisk", "Disk Usage"),
     "sys_temp":             ("°C", "temperature", "mdi:thermometer-lines", "CPU Temp"),
     "sys_uptime":           ("s", "duration", "mdi:clock-start", "System Uptime"),
-
+    "sys_version":          ("", "none", "mdi:tag-text", "Bridge Version"),
     # --- Magnetometer ---
     "mag_uT":               ("uT", "none", "mdi:magnet", "Mag Field Strength"),
     "geomag_index":         ("idx", "none", "mdi:waveform", "Mag Disturbance"),
