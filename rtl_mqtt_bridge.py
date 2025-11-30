@@ -17,14 +17,17 @@ import statistics
 import version # <--- NEW IMPORT
 from rich import print
 
-def cleanup_loop(mqtt_handler):
+def purge_loop(mqtt_handler):
     """
-    Runs every 60 seconds to check for devices older than 1 hour (3600s).
+    Checks every 60 seconds if we need to purge old devices.
     """
+    print("[STARTUP] Auto-Remove / Purge Loop started.")
     while True:
         time.sleep(60)
-        # Set your desired timeout here (e.g., 3600 seconds = 1 hour)
-        mqtt_handler.prune_stale_devices(timeout_seconds=3600)
+        try:
+            mqtt_handler.prune_stale_devices()
+        except Exception as e:
+            print(f"[ERROR] Purge loop failed: {e}")
 
 # --- PRE-FLIGHT DEPENDENCY CHECK ---
 def check_dependencies():
@@ -364,7 +367,11 @@ def main():
     # --- 4. START THROTTLE FLUSHER ---
     threading.Thread(target=throttle_flush_loop, args=(mqtt_handler,), daemon=True).start()
     
-    threading.Thread(target=cleanup_loop, args=(mqtt_handler,), daemon=True).start()
+    # Only start if the config is actually enabled (>0)
+    if getattr(config, "DEVICE_PURGE_INTERVAL", 0) > 0:
+        threading.Thread(target=purge_loop, args=(mqtt_handler,), daemon=True).start()
+    else:
+        print("[STARTUP] Auto-Remove is DISABLED (Config is 0).")
     try:
         while True: time.sleep(1)
     except KeyboardInterrupt:

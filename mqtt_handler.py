@@ -31,8 +31,8 @@ class HomeNodeMQTT:
         self.tracked_devices = set()
         
         self.discovery_lock = threading.Lock()
-        self.last_seen_timestamps = {}  # <--- NEW: Track time of last packet
-        self.discovery_topics = {}      # <--- NEW: Map Unique ID to Config Topic
+        self.last_seen_timestamps = {}
+        self.discovery_topics = {}
     def _on_connect(self, c, u, f, rc, p=None):
         if rc == 0:
             c.publish(self.TOPIC_AVAILABILITY, "online", retain=True)
@@ -60,7 +60,8 @@ class HomeNodeMQTT:
         with self.discovery_lock:
             if unique_id in self.discovery_published:
                 return
-
+            config_topic = f"homeassistant/sensor/{unique_id}/config"
+            self.discovery_topics[unique_id] = config_topic
             default_meta = (None, "none", "mdi:eye", sensor_name.replace("_", " ").title())
             
             # --- 1. METADATA LOOKUP (Get Icon/Unit/Class) ---
@@ -145,7 +146,7 @@ class HomeNodeMQTT:
 
         unique_id = f"{unique_id_base}_{field}"
         state_topic = f"home/rtl_devices/{state_topic_base}/{field}" 
-        self.last_seen_timestamps[unique_id] = time.time() # <--- NEW: Update timestamp
+        self.last_seen_timestamps[unique_id] = time.time()
 
         self._publish_discovery(field, state_topic, unique_id, device_name, device_model, friendly_name_override=friendly_name)
 
@@ -160,36 +161,42 @@ class HomeNodeMQTT:
             if value_changed:
                 print(f" -> TX {device_name} [{field}]: {value}")
 
-# --- NEW FUNCTION ---
-    def prune_stale_devices(self, timeout_seconds=3600):
+
+    def prune_stale_devices(self):
         """
-        Checks for devices that haven't been seen in 'timeout_seconds'.
-        Removes them from Home Assistant and internal tracking.
+        Reads DEVICE_PURGE_INTERVAL from config. 
+        Removes entities that haven't updated in that time.
         """
+        purge_interval = getattr(config, "DEVICE_PURGE_INTERVAL", 0)
+        
+        # Safety check: If 0 or None, do nothing
+        if not purge_interval or purge_interval <= 0:
+            return
+
         now = time.time()
         to_delete = []
 
-        # 1. Identify Stale Devices
-        for unique_id, last_seen in self.last_seen_timestamps.items():
-            if (now - last_seen) > timeout_seconds:
-                to_delete.append(unique_id)
+        # 1. Find Stale Devices
+        for uid, last_seen in self.last_seen_timestamps.items():
+            if (now - last_seen) > purge_interval:
+                to_delete.append(uid)
 
-        # 2. Delete them
+        # 2. Delete Them
         for uid in to_delete:
-            print(f"[CLEANUP] Removing stale entity: {uid}")
+            print(f"[CLEANUP] Purging stale entity: {uid}")
             
-            # A. Send Empty Payload to MQTT Config Topic (Tells HA to delete)
+            # Send empty payload to MQTT config topic (This deletes it from HA)
             if uid in self.discovery_topics:
                 topic = self.discovery_topics[uid]
                 self.client.publish(topic, "", retain=True) 
                 del self.discovery_topics[uid]
 
-            # B. Clear internal tracking so it re-discovers if it returns
+            # Clear internal memory so it can be re-discovered if it returns
             with self.discovery_lock:
                 if uid in self.discovery_published:
                     self.discovery_published.remove(uid)
             
-            if uid in self.last_seen_values:
-                del self.last_seen_values[uid]
+            if uid in self.last_sent_values:
+                del self.last_sent_values[uid]
                 
             del self.last_seen_timestamps[uid]
