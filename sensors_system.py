@@ -1,10 +1,4 @@
-"""
-FILE: sensors_system.py
-DESCRIPTION:
-  The low-level class that interfaces with the Operating System.
-  - Uses the 'psutil' library to read CPU load, Memory usage, and Disk space.
-  - Reads Linux thermal zones for CPU temperature.
-"""
+# sensors_system.py
 import shutil
 import time
 import os

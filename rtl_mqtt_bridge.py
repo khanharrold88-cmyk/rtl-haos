@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""
-FILE: rtl_mqtt_bridge.py
-DESCRIPTION:
-  The main executable script.
-  - FINAL VER: Synched System Logs (Cyan/Dim), Safe Debug Parsing, Glitch-Free.
-"""
-import subprocess
+import subprocess  # <--- This was missing!
 import json
 import time
 import threading
@@ -15,28 +9,38 @@ import fnmatch
 import socket
 import statistics 
 from datetime import datetime
-import version
-from rich.live import Live
 from collections import deque
+import re
+
+# --- RICH UI IMPORTS ---
+# Only keep UI elements here. The Console is imported from logger.
+from rich.live import Live
 from rich.console import Group
-from rich import print
-from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich import box
-from rich.syntax import Syntax
 from rich.text import Text
-import re
 
-console = Console()
+# --- LOCAL IMPORTS ---
+import config
+from utils import clean_mac, calculate_dew_point, get_system_mac
+from mqtt_handler import HomeNodeMQTT
+from field_meta import FIELD_META 
+from system_monitor import system_stats_loop
+import version
+
+# --- LOGGER IMPORT ---
+import logger
+from logger import console # <--- Shared console instance
 
 # --- PRE-FLIGHT DEPENDENCY CHECK ---
 def check_dependencies():
     if not subprocess.run(["which", "rtl_433"], capture_output=True).stdout:
-        print("CRITICAL: 'rtl_433' binary not found. Please install it.")
+        # Use the new logger for errors
+        logger.error("CRITICAL", "'rtl_433' binary not found. Please install it.")
         sys.exit(1)
     if importlib.util.find_spec("paho") is None:
-        print("CRITICAL: Python dependency 'paho-mqtt' not found.")
+        logger.error("CRITICAL", "Python dependency 'paho-mqtt' not found.")
         sys.exit(1)
 
 check_dependencies()
@@ -54,56 +58,49 @@ BUFFER_LOCK = threading.Lock()
 
 # ---------------- LOGGING HELPERS ----------------
 
-def log_system_event(tag, message):
-    """Prints a system log with Dim Timestamp and Cyan Tag."""
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    # UPDATED: No brackets around time. Tag is Cyan.
-    console.print(f"[dim]{timestamp}[/dim] [bold cyan]{tag:<10}[/bold cyan] {message}")
-
-def log_debug_packet(radio_name, raw_json_str):
-    """
-    Prints a raw JSON packet with 'Tron' styling using a Placeholder strategy.
-    """
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    s = raw_json_str
+# def log_debug_packet(radio_name, raw_json_str):
+#     """
+#     Prints a raw JSON packet with 'Tron' styling using a Placeholder strategy.
+#     """
+#     timestamp = datetime.now().strftime("%H:%M:%S")
+#     s = raw_json_str
     
-    # 1. HIDE structural punctuation (Replace with temporary placeholders)
-    s = s.replace('{', '§OB§').replace('}', '§CB§')
-    s = s.replace('[', '§LB§').replace(']', '§RB§')
-    s = s.replace(',', '§CM§')
+#     # 1. HIDE structural punctuation (Replace with temporary placeholders)
+#     s = s.replace('{', '§OB§').replace('}', '§CB§')
+#     s = s.replace('[', '§LB§').replace(']', '§RB§')
+#     s = s.replace(',', '§CM§')
 
-    # 2. Format KEYS (White)
-    s = re.sub(
-        r'"([^"]+)"\s*:', 
-        r'[dim]"[/dim][bold white]\1[/bold white][dim]":[/dim]', 
-        s
-    )
+#     # 2. Format KEYS (White)
+#     s = re.sub(
+#         r'"([^"]+)"\s*:', 
+#         r'[dim]"[/dim][bold white]\1[/bold white][dim]":[/dim]', 
+#         s
+#     )
     
-    # 3. Format VALUES (String) (Cyan)
-    s = re.sub(
-        r'(\[dim\]":\[/dim\]\s*)"([^"]+)"', 
-        r'\1[dim]"[/dim][bold cyan]\2[/bold cyan][dim]"[/dim]', 
-        s
-    )
+#     # 3. Format VALUES (String) (Cyan)
+#     s = re.sub(
+#         r'(\[dim\]":\[/dim\]\s*)"([^"]+)"', 
+#         r'\1[dim]"[/dim][bold cyan]\2[/bold cyan][dim]"[/dim]', 
+#         s
+#     )
     
-    # 4. Format VALUES (Number/Bool) (Cyan)
-    s = re.sub(
-        r'(\[dim\]":\[/dim\]\s*)([0-9.-]+|true|false|null)', 
-        r'\1[bold cyan]\2[/bold cyan]', 
-        s
-    )
+#     # 4. Format VALUES (Number/Bool) (Cyan)
+#     s = re.sub(
+#         r'(\[dim\]":\[/dim\]\s*)([0-9.-]+|true|false|null)', 
+#         r'\1[bold cyan]\2[/bold cyan]', 
+#         s
+#     )
 
-    # 5. RESTORE structural punctuation (with Dim styling)
-    s = s.replace('§OB§', '[dim]{[/dim]').replace('§CB§', '[dim]}[/dim]')
-    s = s.replace('§LB§', '[dim][[/dim]').replace('§RB§', '[dim]][/dim]')
-    s = s.replace('§CM§', '[dim],[/dim]')
+#     # 5. RESTORE structural punctuation (with Dim styling)
+#     s = s.replace('§OB§', '[dim]{[/dim]').replace('§CB§', '[dim]}[/dim]')
+#     s = s.replace('§LB§', '[dim][[/dim]').replace('§RB§', '[dim]][/dim]')
+#     s = s.replace('§CM§', '[dim],[/dim]')
 
-    # UPDATED: No brackets around time.
-    console.print(
-        f"[dim]{timestamp}[/dim] 🐛 [bold deep_sky_blue1]{radio_name:<25}[/bold deep_sky_blue1] "
-        f"| [bold cyan]RAW[/bold cyan]                : "
-        f"{s}"
-    )
+#     console.print(
+#         f"[dim]{timestamp}[/dim] 🐞 [bold deep_sky_blue1]{radio_name:<25}[/bold deep_sky_blue1] "
+#         f"| [bold cyan]RAW[/bold cyan]                : "
+#         f"{s}"
+#     )
 
 # ---------------- DASHBOARD ----------------
 def get_dashboard_layout(sys_id, sys_model, frame=0):
@@ -195,7 +192,8 @@ def throttle_flush_loop(mqtt_handler):
     interval = getattr(config, "RTL_THROTTLE_INTERVAL", 30)
     if interval <= 0: return
 
-    log_system_event("[THROTTLE]", f"Averaging data every {interval} seconds.")
+    # UPDATED: Use logger.info
+    logger.info("[THROTTLE]", f"Averaging data every {interval} seconds.")
     while True:
         time.sleep(interval)
         with BUFFER_LOCK:
@@ -227,7 +225,8 @@ def throttle_flush_loop(mqtt_handler):
                 count_sent += 1
         
         if getattr(config, "DEBUG_RAW_JSON", False) and count_sent > 0:
-            log_system_event("[THROTTLE]", f"Flushed {count_sent} averaged readings.")
+            # UPDATED: Use logger.info
+            logger.info("[THROTTLE]", f"Flushed {count_sent} averaged readings.")
 
 def discover_default_rtl_serial():
     try:
@@ -254,7 +253,8 @@ def rtl_loop(radio_config, mqtt_handler, sys_id, sys_model, signal_event):
 
     cmd = ["rtl_433", "-d", f":{device_id}", "-f", frequency, "-s", sample_rate, "-F", "json", "-M", "time:iso", "-M", "protocol", "-M", "level"]
 
-    log_system_event("[RTL]", f"Manager started for {radio_name}. Monitoring...")
+    # UPDATED: logger.info
+    logger.info("[RTL]", f"Manager started for {radio_name}. Monitoring...")
 
     while True:
         mqtt_handler.send_sensor(sys_id, status_field, "Scanning...", sys_name, sys_model, is_rtl=True, friendly_name=status_friendly_name)
@@ -268,7 +268,8 @@ def rtl_loop(radio_config, mqtt_handler, sys_id, sys_model, signal_event):
                 safe_line = line.strip()
 
                 if "usb_open error" in safe_line or "No supported devices" in safe_line:
-                    log_system_event("[ERROR]", f"[{radio_name}] Hardware missing!")
+                    # UPDATED: logger.error
+                    logger.error("[ERROR]", f"[{radio_name}] Hardware missing!")
                     mqtt_handler.send_sensor(sys_id, status_field, "No Device Found", sys_name, sys_model, is_rtl=True, friendly_name=status_friendly_name)
                 
                 if safe_line.startswith("{") and safe_line.endswith("}"):
@@ -299,8 +300,9 @@ def rtl_loop(radio_config, mqtt_handler, sys_id, sys_model, signal_event):
                     else:
                         if is_blocked_device(clean_id, model): continue
 
+                    # UPDATED: logger.raw_json (The fix you asked for!)
                     if getattr(config, "DEBUG_RAW_JSON", False):
-                        log_debug_packet(radio_name, safe_line)
+                        logger.raw_json(radio_name, safe_line)
 
                     # Utilities & Sensor Logic
                     if "Neptune-R900" in model and data.get("consumption") is not None:
@@ -336,17 +338,20 @@ def rtl_loop(radio_config, mqtt_handler, sys_id, sys_model, signal_event):
 
             if proc: proc.wait()
         except Exception as e:
-            print(f"[{radio_name}] Exception: {e}")
+            # UPDATED: logger.error
+            logger.error(radio_name, f"Exception: {e}")
         time.sleep(30)
 
 def purge_loop(mqtt_handler):
-    log_system_event("[STARTUP]", "Auto-Remove / Purge Loop started.")
+    # UPDATED: logger.info
+    logger.info("[STARTUP]", "Auto-Remove / Purge Loop started.")
     while True:
         time.sleep(60)
         try:
             mqtt_handler.prune_stale_devices()
         except Exception as e:
-            log_system_event("[ERROR]", f"Purge loop failed: {e}")
+            # UPDATED: logger.error
+            logger.error("[ERROR]", f"Purge loop failed: {e}")
 
 def main():
     # --- 1. SETUP & IDENTITY ---

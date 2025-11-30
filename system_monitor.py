@@ -1,19 +1,12 @@
 #!/usr/bin/env python3
-"""
-FILE: system_monitor.py
-DESCRIPTION:
-  A threaded loop that gathers local system statistics.
-  - UPDATED: Now publishes Config lists (Blacklist, Whitelist, Main Sensors)
-    to the Diagnostic tab.
-"""
 import time
 import threading
 import sys
 import importlib.util
 import socket
-import version # <--- NEW IMPORT
+import version 
+import logger
 
-from rich import print
 # --- IMPORTS & DEPENDENCY CHECK ---
 PSUTIL_AVAILABLE = False
 try:
@@ -22,10 +15,10 @@ try:
         from sensors_system import SystemMonitor
         PSUTIL_AVAILABLE = True
     else:
-        print("[WARN] 'psutil' not found. CPU/RAM stats will be disabled, but Device List will work.")
+        logger.info("[WARN]", "'psutil' not found. CPU/RAM stats will be disabled, but Device List will work.")
 except ImportError as e:
     PSUTIL_AVAILABLE = False
-    print(f"[WARN] System Monitoring disabled: {e}")
+    logger.info("[WARN]", f"System Monitoring disabled: {e}")
 
 # Safe imports for the rest of the app
 import config
@@ -52,9 +45,9 @@ def system_stats_loop(mqtt_handler, DEVICE_ID, MODEL_NAME):
     if PSUTIL_AVAILABLE:
         try:
             sys_mon = SystemMonitor()
-            print("[STARTUP] Hardware Monitor (psutil) initialized.")
+            logger.info("[STARTUP]", "Hardware Monitor (psutil) initialized.")
         except Exception as e:
-            print(f"[WARN] Hardware Monitor failed to start: {e}")
+            logger.info("[WARN]", f"Hardware Monitor failed to start: {e}")
 
     print("[STARTUP] Starting System Monitor Loop...")
     
@@ -83,7 +76,7 @@ def system_stats_loop(mqtt_handler, DEVICE_ID, MODEL_NAME):
             # mqtt_handler.send_sensor(DEVICE_ID, "sys_cfg_sensors", format_list_for_ha(ms), device_name, MODEL_NAME, is_rtl=True)
             
         except Exception as e:
-            print(f"[ERROR] Bridge Stats update failed: {e}")
+            logger.info("[ERROR]", f"Bridge Stats update failed: {e}")
 
         # --- 2. HARDWARE METRICS (Only if psutil is working) ---
         if sys_mon:
@@ -99,7 +92,7 @@ def system_stats_loop(mqtt_handler, DEVICE_ID, MODEL_NAME):
                         is_rtl=True 
                     )
             except Exception as e:
-                print(f"[SYSTEM ERROR] Hardware stats failed: {e}")
+                logger.info("[SYSTEM ERROR]", f"Hardware stats failed: {e}")
             
         time.sleep(60) 
 

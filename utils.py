@@ -1,12 +1,4 @@
 # utils.py
-"""
-FILE: utils.py
-DESCRIPTION:
-  Shared helper functions used across the project.
-  - clean_mac(): Sanitizes device IDs for MQTT topics.
-  - calculate_dew_point(): Math formula to calculate Dew Point from Temp/Humidity.
-  - get_system_mac(): Generates a unique ID for the bridge itself based on hardware.
-"""
 import re
 import math
 import uuid # <--- Required for get_system_mac

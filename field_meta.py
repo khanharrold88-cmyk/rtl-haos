@@ -1,7 +1,5 @@
 # field_meta.py
-"""
-FILE: field_meta.py
-"""
+
 # Format: (Unit, Device Class, Icon, Friendly Name)
 
 FIELD_META = {

@@ -1,26 +1,16 @@
 # mqtt_handler.py
-"""
-FILE: mqtt_handler.py
-DESCRIPTION:
-  Manages the connection to the MQTT Broker.
-  - FINAL VER: Electric Blue Names, Dim Times, WHITE Fields, WHITE Values.
-"""
 import json
 import threading
 import sys
 import time
-from datetime import datetime
 import paho.mqtt.client as mqtt
-from rich.console import Console
-from rich import print
 
 # Local imports
 import config
 from utils import clean_mac
 from field_meta import FIELD_META
 import version
-
-console = Console()
+import logger 
 
 class HomeNodeMQTT:
     def __init__(self):
@@ -48,14 +38,14 @@ class HomeNodeMQTT:
         if rc == 0:
             c.publish(self.TOPIC_AVAILABILITY, "online", retain=True)
         else:
-            console.print(f"[bold red][MQTT] Connection Failed! Code: {rc}[/bold red]")
+            logger.error("[MQTT]", f"Connection Failed! Code: {rc}")
 
     def start(self):
         try:
             self.client.connect(config.MQTT_SETTINGS["host"], config.MQTT_SETTINGS["port"])
             self.client.loop_start()
         except Exception as e:
-            console.print(f"[bold red][CRITICAL] MQTT Connect Failed: {e}[/bold red]")
+            logger.error("[CRITICAL]", f"MQTT Connect Failed: {e}")
             sys.exit(1)
 
     def stop(self):
@@ -147,39 +137,7 @@ class HomeNodeMQTT:
             self.last_sent_values[unique_id_v2] = value
             
             if value_changed:
-                self._print_log(device_name, field, value, is_rtl)
-
-    def _print_log(self, device_name, field, value, is_rtl):
-        """Prints a pretty log line with Dim timestamp, Blue Name, White Field, White Value."""
-        
-        # 1. Get Unit for display
-        meta = FIELD_META.get(field)
-        unit = meta[0] if meta else ""
-        
-        display_val = f"{value}"
-        if unit:
-            display_val += f" {unit}"
-
-        # 2. Get Icon/Color based on type
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        
-        if is_rtl:
-            # Radio Signal
-            icon = "📡"
-            color_dev = "bold deep_sky_blue1" # Electric Blue Name
-            color_val = "bold white"          # Bright White Value
-        else:
-            # System Stat (Dim/Background)
-            icon = "🖥️ "
-            color_dev = "dim blue"
-            color_val = "dim white"
-
-        # 3. Print aligned columns
-        # UPDATED: No brackets around time. Time is [dim]. Field is [bold white].
-        console.print(
-            f"[dim]{timestamp}[/dim] {icon} [{color_dev}]{device_name:<25}[/{color_dev}] "
-            f"| [bold white]{field:<18}[/bold white] : [{color_val}]{display_val}[/{color_val}]"
-        )
+                logger.telemetry(device_name, field, value, is_rtl)
 
     def prune_stale_devices(self):
         """Removes devices that haven't been seen in DEVICE_PURGE_INTERVAL."""
@@ -194,10 +152,10 @@ class HomeNodeMQTT:
                 to_delete.append(uid)
 
         if to_delete:
-            console.rule(f"[yellow]Executing Purge: {len(to_delete)} Devices[/yellow]")
+            logger.warn("[CLEANUP]", f"Executing Purge: {len(to_delete)} Devices")
             
         for uid in to_delete:
-            console.print(f"[yellow][CLEANUP] Forgetting:[/yellow] {uid}")
+            logger.warn("[CLEANUP]", f"Forgetting: {uid}")
             
             if uid in self.discovery_topics:
                 topic = self.discovery_topics[uid]
