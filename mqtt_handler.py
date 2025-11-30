@@ -3,7 +3,7 @@
 FILE: mqtt_handler.py
 DESCRIPTION:
   Manages the connection to the MQTT Broker.
-  - FINAL VER: Electric Blue Names, Green Times, WHITE Values.
+  - FINAL VER: Electric Blue Names, Dim Times, WHITE Fields, WHITE Values.
 """
 import json
 import threading
@@ -150,7 +150,7 @@ class HomeNodeMQTT:
                 self._print_log(device_name, field, value, is_rtl)
 
     def _print_log(self, device_name, field, value, is_rtl):
-        """Prints a pretty log line with Green timestamp, Blue Name, White Field, White Value."""
+        """Prints a pretty log line with Dim timestamp, Blue Name, White Field, White Value."""
         
         # 1. Get Unit for display
         meta = FIELD_META.get(field)
@@ -175,9 +175,9 @@ class HomeNodeMQTT:
             color_val = "dim white"
 
         # 3. Print aligned columns
-        # UPDATED: Added [bold white] around the field name so it pops out.
+        # UPDATED: No brackets around time. Time is [dim]. Field is [bold white].
         console.print(
-            f"[[green]{timestamp}[/green]] {icon} [{color_dev}]{device_name:<25}[/{color_dev}] "
+            f"[dim]{timestamp}[/dim] {icon} [{color_dev}]{device_name:<25}[/{color_dev}] "
             f"| [bold white]{field:<18}[/bold white] : [{color_val}]{display_val}[/{color_val}]"
         )
 
