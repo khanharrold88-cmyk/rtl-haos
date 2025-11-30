@@ -79,6 +79,6 @@ def raw_json(source, raw_str):
     s = s.replace('§CM§', '[dim],[/dim]')
 
     console.print(
-        f"{_timestamp()} 🐛 [bold deep_sky_blue1]{source:<25}[/bold deep_sky_blue1] "
+        f"{_timestamp()} 🐞 [bold deep_sky_blue1]{source:<25}[/bold deep_sky_blue1] "
         f"| [bold cyan]RAW[/bold cyan]                : {s}"
     )
