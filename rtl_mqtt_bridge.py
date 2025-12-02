@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import subprocess  # <--- This was missing!
+import subprocess
 import json
 import time
 import threading
@@ -13,7 +13,6 @@ from collections import deque
 import re
 
 # --- RICH UI IMPORTS ---
-# Only keep UI elements here. The Console is imported from logger.
 from rich.live import Live
 from rich.console import Group
 from rich.table import Table
@@ -31,12 +30,11 @@ import version
 
 # --- LOGGER IMPORT ---
 import logger
-from logger import console # <--- Shared console instance
+from logger import console
 
 # --- PRE-FLIGHT DEPENDENCY CHECK ---
 def check_dependencies():
     if not subprocess.run(["which", "rtl_433"], capture_output=True).stdout:
-        # Use the new logger for errors
         logger.error("CRITICAL", "'rtl_433' binary not found. Please install it.")
         sys.exit(1)
     if importlib.util.find_spec("paho") is None:
@@ -45,62 +43,9 @@ def check_dependencies():
 
 check_dependencies()
 
-import paho.mqtt.client as mqtt
-import config
-from utils import clean_mac, calculate_dew_point, get_system_mac
-from mqtt_handler import HomeNodeMQTT
-from field_meta import FIELD_META 
-from system_monitor import system_stats_loop
-
 # --- BUFFER GLOBALS ---
 DATA_BUFFER = {} 
 BUFFER_LOCK = threading.Lock()
-
-# ---------------- LOGGING HELPERS ----------------
-
-# def log_debug_packet(radio_name, raw_json_str):
-#     """
-#     Prints a raw JSON packet with 'Tron' styling using a Placeholder strategy.
-#     """
-#     timestamp = datetime.now().strftime("%H:%M:%S")
-#     s = raw_json_str
-    
-#     # 1. HIDE structural punctuation (Replace with temporary placeholders)
-#     s = s.replace('{', '§OB§').replace('}', '§CB§')
-#     s = s.replace('[', '§LB§').replace(']', '§RB§')
-#     s = s.replace(',', '§CM§')
-
-#     # 2. Format KEYS (White)
-#     s = re.sub(
-#         r'"([^"]+)"\s*:', 
-#         r'[dim]"[/dim][bold white]\1[/bold white][dim]":[/dim]', 
-#         s
-#     )
-    
-#     # 3. Format VALUES (String) (Cyan)
-#     s = re.sub(
-#         r'(\[dim\]":\[/dim\]\s*)"([^"]+)"', 
-#         r'\1[dim]"[/dim][bold cyan]\2[/bold cyan][dim]"[/dim]', 
-#         s
-#     )
-    
-#     # 4. Format VALUES (Number/Bool) (Cyan)
-#     s = re.sub(
-#         r'(\[dim\]":\[/dim\]\s*)([0-9.-]+|true|false|null)', 
-#         r'\1[bold cyan]\2[/bold cyan]', 
-#         s
-#     )
-
-#     # 5. RESTORE structural punctuation (with Dim styling)
-#     s = s.replace('§OB§', '[dim]{[/dim]').replace('§CB§', '[dim]}[/dim]')
-#     s = s.replace('§LB§', '[dim][[/dim]').replace('§RB§', '[dim]][/dim]')
-#     s = s.replace('§CM§', '[dim],[/dim]')
-
-#     console.print(
-#         f"[dim]{timestamp}[/dim] 🐞 [bold deep_sky_blue1]{radio_name:<25}[/bold deep_sky_blue1] "
-#         f"| [bold cyan]RAW[/bold cyan]                : "
-#         f"{s}"
-#     )
 
 # ---------------- DASHBOARD ----------------
 def get_dashboard_layout(sys_id, sys_model, frame=0):
@@ -136,6 +81,11 @@ def get_dashboard_layout(sys_id, sys_model, frame=0):
     r_stat = f"[green]{len(radios)} Active[/green]" if radios else "[cyan]Auto-Detect[/cyan]"
     table.add_row("RADIO", "Mode", r_stat)
     
+    tcp_enabled = getattr(config, "TCP_LISTEN_ENABLED", False)
+    tcp_port = getattr(config, "TCP_LISTEN_PORT", 4000)
+    tcp_stat = f"[green]Port {tcp_port}[/green]" if tcp_enabled else "[dim]Disabled[/dim]"
+    table.add_row("NETWORK", "TCP Input", tcp_stat)
+
     purge = getattr(config, "DEVICE_PURGE_INTERVAL", 0)
     p_str = f"{purge/3600:.1f} Hours" if purge >= 3600 else (f"{purge}s" if purge > 0 else "[red]Disabled[/red]")
     table.add_row("LOGIC", "Auto-Remove", p_str)
@@ -192,7 +142,6 @@ def throttle_flush_loop(mqtt_handler):
     interval = getattr(config, "RTL_THROTTLE_INTERVAL", 30)
     if interval <= 0: return
 
-    # UPDATED: Use logger.info
     logger.info("[THROTTLE]", f"Averaging data every {interval} seconds.")
     while True:
         time.sleep(interval)
@@ -225,8 +174,81 @@ def throttle_flush_loop(mqtt_handler):
                 count_sent += 1
         
         if getattr(config, "DEBUG_RAW_JSON", False) and count_sent > 0:
-            # UPDATED: Use logger.info
             logger.info("[THROTTLE]", f"Flushed {count_sent} averaged readings.")
+
+# --- SHARED PACKET PROCESSING (USB & TCP) ---
+def process_packet(raw_line, source_name, mqtt_handler, signal_event=None):
+    """
+    Core logic: Decodes JSON, checks whitelist/blacklist, calculates extras, dispatches.
+    """
+    safe_line = raw_line.strip()
+    if not safe_line.startswith("{") or not safe_line.endswith("}"):
+        return
+
+    try:
+        data = json.loads(safe_line)
+        
+        # Unlock dashboard on first successful packet
+        if signal_event and not signal_event.is_set():
+            signal_event.set()
+            time.sleep(1.0) 
+
+    except:
+        return
+
+    model = data.get("model", "Generic")
+    sid = data.get("id") or data.get("channel") or "unknown"
+    clean_id = clean_mac(sid)
+    dev_name = f"{model} ({clean_id})"
+
+    # Whitelist / Blacklist
+    whitelist = getattr(config, "DEVICE_WHITELIST", [])
+    if whitelist:
+        is_allowed = False
+        for pattern in whitelist:
+            if fnmatch.fnmatch(str(clean_id), pattern) or fnmatch.fnmatch(model, pattern):
+                is_allowed = True
+                break
+        if not is_allowed: return
+    else:
+        if is_blocked_device(clean_id, model): return
+
+    # Debug Raw
+    if getattr(config, "DEBUG_RAW_JSON", False):
+        logger.raw_json(source_name, safe_line)
+
+    # Utilities & Sensor Logic
+    if "Neptune-R900" in model and data.get("consumption") is not None:
+        real_val = float(data["consumption"]) / 10.0
+        dispatch_reading(clean_id, "meter_reading", real_val, dev_name, model, mqtt_handler)
+        del data["consumption"]
+
+    if ("SCM" in model or "ERT" in model) and data.get("consumption") is not None:
+        dispatch_reading(clean_id, "Consumption", data["consumption"], dev_name, model, mqtt_handler)
+        del data["consumption"]
+
+    t_c = None
+    if "temperature_C" in data: t_c = data["temperature_C"]
+    elif "temp_C" in data: t_c = data["temp_C"]
+    elif "temperature_F" in data: t_c = (data["temperature_F"] - 32.0) * 5.0 / 9.0
+    elif "temperature" in data: t_c = data["temperature"]
+
+    if t_c is not None and data.get("humidity") is not None:
+        dp_f = calculate_dew_point(t_c, data["humidity"])
+        if dp_f is not None:
+            dispatch_reading(clean_id, "dew_point", dp_f, dev_name, model, mqtt_handler)
+
+    flat = flatten(data)
+    for key, value in flat.items():
+        if key in getattr(config, 'SKIP_KEYS', []): continue
+        if key in ["temperature_C", "temp_C"] and isinstance(value, (int, float)):
+            val_f = round(value * 1.8 + 32.0, 1)
+            dispatch_reading(clean_id, "temperature", val_f, dev_name, model, mqtt_handler)
+        elif key in ["temperature_F", "temp_F", "temperature"] and isinstance(value, (int, float)):
+            dispatch_reading(clean_id, "temperature", value, dev_name, model, mqtt_handler)
+        else:
+            dispatch_reading(clean_id, key, value, dev_name, model, mqtt_handler)
+
 
 def discover_default_rtl_serial():
     try:
@@ -253,7 +275,6 @@ def rtl_loop(radio_config, mqtt_handler, sys_id, sys_model, signal_event):
 
     cmd = ["rtl_433", "-d", f":{device_id}", "-f", frequency, "-s", sample_rate, "-F", "json", "-M", "time:iso", "-M", "protocol", "-M", "level"]
 
-    # UPDATED: logger.info
     logger.info("[RTL]", f"Manager started for {radio_name}. Monitoring...")
 
     while True:
@@ -268,89 +289,70 @@ def rtl_loop(radio_config, mqtt_handler, sys_id, sys_model, signal_event):
                 safe_line = line.strip()
 
                 if "usb_open error" in safe_line or "No supported devices" in safe_line:
-                    # UPDATED: logger.error
                     logger.error("[ERROR]", f"[{radio_name}] Hardware missing!")
                     mqtt_handler.send_sensor(sys_id, status_field, "No Device Found", sys_name, sys_model, is_rtl=True, friendly_name=status_friendly_name)
                 
                 if safe_line.startswith("{") and safe_line.endswith("}"):
-                    try:
-                        data = json.loads(safe_line)
-                        
-                        if not signal_event.is_set():
-                            signal_event.set()
-                            time.sleep(3.0) 
-
-                        mqtt_handler.send_sensor(sys_id, status_field, "Online", sys_name, sys_model, is_rtl=True, friendly_name=status_friendly_name)
-                    except:
-                        continue
-
-                    model = data.get("model", "Generic")
-                    sid = data.get("id") or data.get("channel") or "unknown"
-                    clean_id = clean_mac(sid)
-                    dev_name = f"{model} ({clean_id})"
-
-                    whitelist = getattr(config, "DEVICE_WHITELIST", [])
-                    if whitelist:
-                        is_allowed = False
-                        for pattern in whitelist:
-                            if fnmatch.fnmatch(str(clean_id), pattern) or fnmatch.fnmatch(model, pattern):
-                                is_allowed = True
-                                break
-                        if not is_allowed: continue
-                    else:
-                        if is_blocked_device(clean_id, model): continue
-
-                    # UPDATED: logger.raw_json (The fix you asked for!)
-                    if getattr(config, "DEBUG_RAW_JSON", False):
-                        logger.raw_json(radio_name, safe_line)
-
-                    # Utilities & Sensor Logic
-                    if "Neptune-R900" in model and data.get("consumption") is not None:
-                        real_val = float(data["consumption"]) / 10.0
-                        dispatch_reading(clean_id, "meter_reading", real_val, dev_name, model, mqtt_handler)
-                        del data["consumption"]
-
-                    if ("SCM" in model or "ERT" in model) and data.get("consumption") is not None:
-                        dispatch_reading(clean_id, "Consumption", data["consumption"], dev_name, model, mqtt_handler)
-                        del data["consumption"]
-
-                    t_c = None
-                    if "temperature_C" in data: t_c = data["temperature_C"]
-                    elif "temp_C" in data: t_c = data["temp_C"]
-                    elif "temperature_F" in data: t_c = (data["temperature_F"] - 32.0) * 5.0 / 9.0
-                    elif "temperature" in data: t_c = data["temperature"]
-
-                    if t_c is not None and data.get("humidity") is not None:
-                        dp_f = calculate_dew_point(t_c, data["humidity"])
-                        if dp_f is not None:
-                            dispatch_reading(clean_id, "dew_point", dp_f, dev_name, model, mqtt_handler)
-
-                    flat = flatten(data)
-                    for key, value in flat.items():
-                        if key in getattr(config, 'SKIP_KEYS', []): continue
-                        if key in ["temperature_C", "temp_C"] and isinstance(value, (int, float)):
-                            val_f = round(value * 1.8 + 32.0, 1)
-                            dispatch_reading(clean_id, "temperature", val_f, dev_name, model, mqtt_handler)
-                        elif key in ["temperature_F", "temp_F", "temperature"] and isinstance(value, (int, float)):
-                            dispatch_reading(clean_id, "temperature", value, dev_name, model, mqtt_handler)
-                        else:
-                            dispatch_reading(clean_id, key, value, dev_name, model, mqtt_handler)
+                     # Status update logic remains here
+                    mqtt_handler.send_sensor(sys_id, status_field, "Online", sys_name, sys_model, is_rtl=True, friendly_name=status_friendly_name)
+                    
+                    # Hand off to shared processor
+                    process_packet(safe_line, radio_name, mqtt_handler, signal_event)
 
             if proc: proc.wait()
         except Exception as e:
-            # UPDATED: logger.error
             logger.error(radio_name, f"Exception: {e}")
         time.sleep(30)
 
+def tcp_bridge_loop(mqtt_handler, signal_event):
+    """
+    Listens for JSON data from other machines (e.g. 'rtl_433 -F json:HOST:PORT').
+    """
+    port = getattr(config, "TCP_LISTEN_PORT", 4000)
+    logger.info("[TCP]", f"Listening for remote JSON on port {port}...")
+
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # Allow port reuse if script restarts quickly
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    
+    try:
+        server.bind(('0.0.0.0', port))
+        server.listen(5)
+    except Exception as e:
+        logger.error("[TCP]", f"Failed to bind port {port}: {e}")
+        return
+
+    while True:
+        try:
+            client, addr = server.accept()
+            logger.info("[TCP]", f"Connection from {addr[0]}")
+            
+            # Spin off a thread to handle this specific client so the server remains responsive
+            threading.Thread(target=_handle_tcp_client, args=(client, addr, mqtt_handler, signal_event), daemon=True).start()
+        except Exception as e:
+            logger.error("[TCP]", f"Accept Error: {e}")
+
+def _handle_tcp_client(client_socket, addr, mqtt_handler, signal_event):
+    source_name = f"TCP_{addr[0]}"
+    try:
+        # 'makefile' allows us to read line-by-line easily
+        with client_socket.makefile('r', encoding='utf-8', errors='ignore') as stream:
+            for line in stream:
+                if not line: break
+                process_packet(line, source_name, mqtt_handler, signal_event)
+    except Exception as e:
+        logger.error(source_name, f"Disconnected: {e}")
+    finally:
+        client_socket.close()
+
+
 def purge_loop(mqtt_handler):
-    # UPDATED: logger.info
     logger.info("[STARTUP]", "Auto-Remove / Purge Loop started.")
     while True:
         time.sleep(60)
         try:
             mqtt_handler.prune_stale_devices()
         except Exception as e:
-            # UPDATED: logger.error
             logger.error("[ERROR]", f"Purge loop failed: {e}")
 
 def main():
@@ -366,18 +368,22 @@ def main():
     # --- 2. START ALL THREADS ---
     mqtt_handler.start()
     
-    # ... (Your thread starting logic here is fine) ...
-    # (The threads will start running now, but they will be SILENT because logging is False)
-    
-    # ... (Thread starting code) ...
     rtl_config = getattr(config, "RTL_CONFIG", None)
     if rtl_config:
         for radio in rtl_config:
             threading.Thread(target=rtl_loop, args=(radio, mqtt_handler, sys_id, sys_model, first_signal_event), daemon=True).start()
     else:
+        # If no config, try auto-detect (USB)
         auto_serial = discover_default_rtl_serial()
         auto_radio = {"name": f"RTL_{auto_serial}", "id": auto_serial} if auto_serial else {"name": "RTL_auto", "id": "0"}
+        
+        # Only start USB listener if we actually found one OR if user didn't explicitly ask for TCP only.
+        # Ideally we run USB if it exists.
         threading.Thread(target=rtl_loop, args=(auto_radio, mqtt_handler, sys_id, sys_model, first_signal_event), daemon=True).start()
+
+    # START TCP LISTENER
+    if getattr(config, "TCP_LISTEN_ENABLED", False):
+        threading.Thread(target=tcp_bridge_loop, args=(mqtt_handler, first_signal_event), daemon=True).start()
 
     threading.Thread(target=system_stats_loop, args=(mqtt_handler, sys_id, sys_model), daemon=True).start()
     threading.Thread(target=throttle_flush_loop, args=(mqtt_handler,), daemon=True).start()
@@ -406,7 +412,7 @@ def main():
             time.sleep(1.5)
             
     except KeyboardInterrupt:
-        logger.set_logging(True) # Enable logs just to say goodbye
+        logger.set_logging(True) 
         logger.warn("[SHUTDOWN]", "Stopping MQTT...")
         mqtt_handler.stop()
         sys.exit(0)
@@ -415,7 +421,7 @@ def main():
     console.clear()
     
     # --- 6. UN-MUTE EVERYTHING ---
-    logger.set_logging(True) # <--- HERE IS THE MAGIC FIX
+    logger.set_logging(True) 
 
     console.print("[bold green]✔ Data Stream Active[/bold green]")
     

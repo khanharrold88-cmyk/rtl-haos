@@ -196,3 +196,11 @@ ID_SUFFIX = "_v2" if FORCE_NEW_IDS else ""
 # Useful for finding the exact model name of a device to whitelist/blacklist it.
 DEBUG_RAW_JSON = False
 
+# config.example.py (Add to the bottom or near RTL_CONFIG)
+
+# ==============================================================================
+# TCP INPUT: REMOTE RTL_433 INSTANCES
+# ==============================================================================
+# Allow other machines running 'rtl_433 -F json:HOST:PORT' to send data here.
+TCP_LISTEN_ENABLED = False
+TCP_LISTEN_PORT = 4000
