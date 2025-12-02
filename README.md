@@ -87,9 +87,10 @@ graph TD
 |:---:|:---:|
 | <img width="514" height="653" alt="image" src="https://github.com/user-attachments/assets/04939cba-dfa0-44fb-bb33-2c50db6a13ad" /> | <img width="329" height="858" alt="image" src="https://github.com/user-attachments/assets/723a5454-4876-4f86-af86-a10b3bba516e" /> |
 
-| RTL_433 Signal SNR | RTL_433 Signal RSSI |
-|:---:|:---:|
-| <img width="566" height="499" alt="image" src="https://github.com/user-attachments/assets/93a22bc7-aa6f-4f88-8bdf-276ecb7cf383" /> | <img width="558" height="496" alt="image" src="https://github.com/user-attachments/assets/a1138265-e95d-41ec-a02b-93030a0e4824" /> |
+| RTL_433 SNR | RTL_433 RSSI | RTL_433 Noise Floor |
+|:---:|:---:|:---:|
+| <img width="566" height="499" alt="image" src="https://github.com/user-attachments/assets/93a22bc7-aa6f-4f88-8bdf-276ecb7cf383" /> | <img width="558" height="496" alt="image" src="https://github.com/user-attachments/assets/a1138265-e95d-41ec-a02b-93030a0e4824" /> | <img width="558" height="496" alt="image" src="https://github.com/user-attachments/assets/1a262af2-2273-40ce-9e9a-c5baac6ded78" /> |
+
 
 
 | Efficacy Diagnosis Using Historical Gas Meter and Room Temperature Data |
