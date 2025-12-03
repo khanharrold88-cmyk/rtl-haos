@@ -50,7 +50,7 @@ graph TD
         SPACER[" "]
 
         E(<b>rtl_433 Binary</b>)
-        L("<b>Custom Script / Remote</b><br/>(TCP Input :4000)")
+        L("<b>Optional Custom Script</b><br/>(TCP Input :4000)")
         F("<b>RTL-HAOS Bridge</b><br/>(This Software)")
 
         %% Data path on host
