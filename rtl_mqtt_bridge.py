@@ -48,7 +48,40 @@ DATA_BUFFER = {}
 BUFFER_LOCK = threading.Lock()
 
 # ---------------- DASHBOARD ----------------
-def get_dashboard_layout(sys_id, sys_model, frame=0):
+import random
+from rich.columns import Columns
+from rich.console import Group
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+from rich import box
+
+# ---------------- DASHBOARD ----------------
+# ---------------- DASHBOARD ----------------
+def get_dashboard_layout(sys_id, sys_model, frame=0, is_locked=False):
+    # --- 1. THEME SELECTION ---
+    if is_locked:
+        base_color = "green"
+        accent_color = "bold green"
+        border_style = "green"
+        logo_color_list = ["#00FF00"] * 6  
+        status_msg = "[bold green]✔ SIGNAL LOCKED[/bold green]"
+        box_type = box.HEAVY 
+        scanner_active = False
+    else:
+        base_color = "cyan"
+        accent_color = "bold cyan"
+        border_style = "cyan" 
+        logo_color_list = ["#E0FFFF", "#00FFFF", "#00D5FF", "#00AAFF", "#0077FF", "#0044FF"] 
+        
+        spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        spin_char = spinner_chars[frame % len(spinner_chars)]
+        status_msg = f"[{base_color}]{spin_char} SCANNING FREQUENCIES...[/{base_color}]"
+        
+        box_type = box.ROUNDED
+        scanner_active = True
+
+    # --- 2. LOGO GENERATION ---
     logo_lines = [
         r"██████╗ ████████╗██╗     ______ ██╗  ██╗ █████╗  ██████╗ ███████╗",
         r"██╔══██╗╚══██╔══╝██║     ██████╗██║  ██║██╔══██╗██╔═══██╗██╔════╝",
@@ -57,46 +90,98 @@ def get_dashboard_layout(sys_id, sys_model, frame=0):
         r"██║  ██║   ██║   ███████╗       ██║  ██║██║  ██║╚██████╔╝███████║",
         r"╚═╝  ╚═╝   ╚═╝   ╚══════╝       ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝",
     ]
-    base_colors = ["#FF00FF", "#E011FF", "#C222FF", "#A333FF", "#8544FF", "#0088FF"]
     
-    dq = deque(base_colors)
-    dq.rotate(frame) 
+    dq = deque(logo_color_list)
+    dq.rotate(frame if not is_locked else 0) 
     current_colors = list(dq)
 
     gradient_logo = Text()
     for line, color in zip(logo_lines, current_colors):
         gradient_logo.append(line + "\n", style=color)
 
-    table = Table(box=box.SIMPLE, show_header=True, header_style="bold blue", expand=True)
-    table.add_column("Category", style="cyan", width=12)
-    table.add_column("Setting", style="dim white", width=20)
-    table.add_column("Value", style="bold white")
-
-    table.add_row("SYSTEM", "Device Model", sys_model)
-    table.add_row("", "System ID", sys_id)
-    table.add_row("MQTT", "Broker", f"{config.MQTT_SETTINGS['host']}")
-    table.add_section()
+    # --- 3. SYSTEM TABLE ---
+    table = Table(box=box.HORIZONTALS, show_header=False, expand=True, padding=(1, 1))
+    table.add_column("COMPONENT", style=f"bold {base_color}", justify="left", ratio=1)
+    table.add_column("STATUS", style="bold white", justify="right", ratio=2)
     
+    # -- Data Prep --
     radios = getattr(config, "RTL_CONFIG", [])
-    r_stat = f"[green]{len(radios)} Active[/green]" if radios else "[cyan]Auto-Detect[/cyan]"
-    table.add_row("RADIO", "Mode", r_stat)
+    r_count = f"{len(radios)}" if radios else "AUTO"
     
+    # Check TCP Config
     tcp_enabled = getattr(config, "TCP_LISTEN_ENABLED", False)
     tcp_port = getattr(config, "TCP_LISTEN_PORT", 4000)
-    tcp_stat = f"[green]Port {tcp_port}[/green]" if tcp_enabled else "[dim]Disabled[/dim]"
-    table.add_row("NETWORK", "TCP Input", tcp_stat)
-
-    purge = getattr(config, "DEVICE_PURGE_INTERVAL", 0)
-    p_str = f"{purge/3600:.1f} Hours" if purge >= 3600 else (f"{purge}s" if purge > 0 else "[red]Disabled[/red]")
-    table.add_row("LOGIC", "Auto-Remove", p_str)
-
-    scan_status = "[bold yellow] SCANNING [/bold yellow]" if frame % 10 < 5 else "[dim yellow] SCANNING [/dim yellow]"
     
+    if tcp_enabled:
+        tcp_stat = f"[bold green]OPEN (PORT {tcp_port})[/bold green]"
+    else:
+        tcp_stat = "[dim]DISABLED[/dim]"
+
+    # -- Rows --
+    table.add_row("CORE SYSTEM", f"{sys_model}\n[dim]{sys_id}[/dim]")
+    table.add_row("MQTT BRIDGE", f"{config.MQTT_SETTINGS['host']}")
+    table.add_row("RTL RADIO", f"ACTIVE NODES: {r_count}")
+    table.add_row("TCP INPUT", tcp_stat)  # <--- It is now explicitly here
+    
+    # --- 4. SCANNER ANIMATION ---
+    if scanner_active:
+        width = 40
+        cycle = (width - 1) * 2
+        pos = frame % cycle
+        if pos >= width: pos = cycle - pos
+            
+        track_chars = ["·"] * width
+        if 0 <= pos < width: track_chars[pos] = "█"     
+        if 0 <= pos-1 < width: track_chars[pos-1] = "▓" 
+        if 0 <= pos+1 < width: track_chars[pos+1] = "▓" 
+        if 0 <= pos-2 < width: track_chars[pos-2] = "▒" 
+        if 0 <= pos+2 < width: track_chars[pos+2] = "▒" 
+            
+        scanner_str = "".join(track_chars)
+        
+        visualizer = Panel(
+            Text(scanner_str, style=f"bold {base_color}", justify="center"),
+            title="[dim]ACTIVE SEARCH[/dim]", 
+            title_align="center",
+            border_style=f"dim {base_color}",
+            box=box.HORIZONTALS,
+            padding=(0,0)
+        )
+    else:
+        visualizer = Panel(
+            Text("▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬", style="bold green", justify="center"),
+            title="[bold green]LINK ESTABLISHED[/bold green]", 
+            title_align="center",
+            border_style="green",
+            box=box.HORIZONTALS,
+            padding=(0,0)
+        )
+
+    # --- 5. FOOTER ---
+    mem_usage = 12 + (frame % 5)
+    footer_text = Text.from_markup(
+        f"[dim]CPU:[/dim] [bold {base_color}]OK[/]    "
+        f"[dim]MEM:[/dim] [bold {base_color}]{mem_usage}%[/]    "
+        f"[dim]ENC:[/dim] [bold {base_color}]OFF[/]    "
+        f"[dim]PWR:[/dim] [bold {base_color}]STABLE[/]",
+        justify="center"
+    )
+
+    # --- 6. ASSEMBLE ---
     return Panel(
-        Group(gradient_logo, table),
-        border_style="bold blue",
-        title="[bold blue] SYSTEM ONLINE [/bold blue]",
-        subtitle=f"[bold white]v{version.__version__}[/bold white] • {scan_status}",
+        Group(
+            gradient_logo, 
+            Text(" "), 
+            table, 
+            Text(" "), 
+            visualizer,
+            Text(" "), 
+            footer_text
+        ),
+        border_style=border_style,
+        box=box_type,
+        title=f"[{accent_color}] ❖ BRIDGE PROTOCOL ❖ [/{accent_color}]",
+        subtitle=status_msg,
     )
 
 # ---------------- LOGIC ----------------
@@ -378,7 +463,6 @@ def main():
         auto_radio = {"name": f"RTL_{auto_serial}", "id": auto_serial} if auto_serial else {"name": "RTL_auto", "id": "0"}
         
         # Only start USB listener if we actually found one OR if user didn't explicitly ask for TCP only.
-        # Ideally we run USB if it exists.
         threading.Thread(target=rtl_loop, args=(auto_radio, mqtt_handler, sys_id, sys_model, first_signal_event), daemon=True).start()
 
     # START TCP LISTENER
@@ -399,16 +483,20 @@ def main():
     try:
         with Live(console=console, refresh_per_second=10, transient=False) as live:
             frame_counter = 0
+            
+            # PHASE A: SCANNING (Blue Tron Theme)
             while not first_signal_event.is_set():
-                live.update(get_dashboard_layout(sys_id, sys_model, frame_counter))
+                live.update(get_dashboard_layout(sys_id, sys_model, frame=frame_counter, is_locked=False))
                 frame_counter += 1
                 time.sleep(0.1) 
 
-            final_panel = get_dashboard_layout(sys_id, sys_model, 0)
-            final_panel.border_style = "bold green"
-            final_panel.title = "[bold green] SYSTEM ONLINE [/bold green]"
-            final_panel.subtitle = "[bold green]✔ SIGNAL LOCKED [/bold green]"
+            # PHASE B: LOCKED (Green Matrix Theme)
+            # We call the same function but set is_locked=True. 
+            # This triggers the green gradient logo and borders defined in the previous step.
+            final_panel = get_dashboard_layout(sys_id, sys_model, frame=frame_counter, is_locked=True)
             live.update(final_panel)
+            
+            # Hold the green "Success" screen for 1.5s so the user sees it
             time.sleep(1.5)
             
     except KeyboardInterrupt:
