@@ -138,10 +138,6 @@ sudo apt update
 sudo apt install -y rtl-sdr rtl-433 git python3 python3-pip python3-venv
 ```
 
-> **⚠️ Important:** Ensure your user has permission to access the USB stick!
-> If you haven't already, install the rtl-sdr udev rules:
-> `sudo apt install rtl-sdr` (or download the rules manually). Unplug and replug your dongle after installing.
-
 ### 2. Clone & Setup
 ```bash
 git clone https://github.com/jaronmcd/rtl-haos.git
@@ -153,6 +149,7 @@ source venv/bin/activate
 
 # Install Python requirements
 pip3 install -r requirements.txt
+
 ```
 
 ### 3. Configuration
@@ -194,6 +191,13 @@ DEVICE_BLACKLIST = [
 ]
 ```
 
+### 4. Reboot
+
+```bash
+# Debian / Ubuntu / Raspberry Pi OS
+sudo reboot now
+```
+
 ---
 
 ## ▶️ Usage
@@ -201,6 +205,7 @@ DEVICE_BLACKLIST = [
 Run the bridge manually to test connection:
 
 ```bash
+cd rtl-haos
 source venv/bin/activate
 python3 rtl_mqtt_bridge.py
 ```
