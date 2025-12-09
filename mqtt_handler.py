@@ -2,6 +2,7 @@
 import json
 import threading
 import sys
+import os  # <--- REQUIRED for the hard restart
 import time
 import socket
 import paho.mqtt.client as mqtt
@@ -38,6 +39,10 @@ class HomeNodeMQTT:
         
         self.last_seen_timestamps = {}
         self.discovery_topics = {}
+        
+        # Cache for discovery payloads (config_topic, payload, state_topic)
+        self.discovery_payloads = {}
+        
         self.discovery_lock = threading.Lock()
         
         # Safety Systems
@@ -66,6 +71,19 @@ class HomeNodeMQTT:
             if msg.topic.endswith("/purge") and payload == "PRESS":
                 logger.info("[COMMAND]", "Force Purge Triggered")
                 self.prune_stale_devices(force=True)
+                return
+            
+            # --- NEW: RESTART COMMAND (HARD KILL) ---
+            if msg.topic.endswith("/restart") and payload == "PRESS":
+                logger.warn("[CONTROL]", "Restart Command Received. Killing process...")
+                
+                # We use a hard kill (os._exit) to ensure the MQTT broker
+                # sees an unexpected disconnect and fires the LWT 'Offline' status.
+                def kill_me():
+                    os._exit(1)
+                
+                # 1s delay to ensure the log message gets out
+                threading.Timer(1.0, kill_me).start()
                 return
 
             if msg.topic.endswith("/nuke") and payload == "PRESS":
@@ -120,34 +138,47 @@ class HomeNodeMQTT:
         threading.Timer(5.0, self._stop_nuke).start()
 
     def _stop_nuke(self):
-        """Stops the nuke process and restores admin buttons."""
+        """Stops the nuke process and restores admin buttons and known entities."""
         self.client.unsubscribe("homeassistant/+/+/config")
         self.nuke_active = False
         logger.info("[NUKE]", "Wipe Complete. Restoring System...")
         
-        # Re-publish buttons
+        self.prune_stale_devices(force=True)
         self.publish_admin_buttons()
         
-        # Clear internal memory so we can rediscover fresh
-        self.discovery_published.clear()
-        self.tracked_devices.clear()
-        self.last_sent_values.clear()
-        self.last_seen_timestamps.clear()
+        restore_count = 0
+        with self.discovery_lock:
+            for uid, (cfg_topic, cfg_payload, state_topic) in self.discovery_payloads.items():
+                self.client.publish(cfg_topic, cfg_payload, retain=True)
+                
+                last_val = self.last_sent_values.get(uid)
+                if last_val is not None:
+                     self.client.publish(state_topic, str(last_val), retain=True)
+                
+                restore_count += 1
+
+        logger.info("[NUKE]", f"System Restored: {restore_count} entities republished.")
 
     def publish_admin_buttons(self):
-        """Publishes Purge and Nuke buttons."""
+        """Publishes Admin Control Buttons."""
         device_name = f"{self.sys_model} ({self.sys_id})"
         identifier = f"rtl433_{self.sys_model}_{self.sys_id}"
         
-        # --- BUTTON 1: FORCE PURGE ---
+        # --- BUTTON 1: CLEAR STALE ---
         self._pub_btn(
-            "Force Purge Stale", "purge", "mdi:broom", 
+            "Clear Inactive Devices", "purge", "mdi:broom", 
             device_name, identifier
         )
 
-        # --- BUTTON 2: DEV NUKE (5x TAP) ---
+        # --- BUTTON 2: RESTART BRIDGE ---
         self._pub_btn(
-            "DESTROY ALL (5x Tap)", "nuke", "mdi:nuke", 
+            "Restart Bridge Service", "restart", "mdi:restart", 
+            device_name, identifier, category="config"
+        )
+
+        # --- BUTTON 3: REBUILD DB (5x TAP) ---
+        self._pub_btn(
+            "Rebuild Database (5x Tap)", "nuke", "mdi:database-refresh", 
             device_name, identifier, category="config"
         )
 
@@ -245,8 +276,11 @@ class HomeNodeMQTT:
             payload["expire_after"] = config.RTL_EXPIRE_AFTER
             payload["availability_topic"] = self.TOPIC_AVAILABILITY
 
-            self.client.publish(config_topic, json.dumps(payload), retain=True)
+            json_payload = json.dumps(payload)
+            self.client.publish(config_topic, json_payload, retain=True)
             self.discovery_published.add(unique_id)
+            
+            self.discovery_payloads[unique_id] = (config_topic, json_payload, state_topic)
 
     def send_sensor(self, sensor_id, field, value, device_name, device_model, is_rtl=True, friendly_name=None):
         if value is None: return
@@ -303,6 +337,8 @@ class HomeNodeMQTT:
             with self.discovery_lock:
                 if uid in self.discovery_published:
                     self.discovery_published.remove(uid)
+                if uid in self.discovery_payloads:
+                    del self.discovery_payloads[uid]
             
             if uid in self.last_sent_values:
                 del self.last_sent_values[uid]
