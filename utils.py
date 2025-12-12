@@ -9,20 +9,34 @@ DESCRIPTION:
 """
 import re
 import math
-import uuid # <--- Required for get_system_mac
+import socket  # <--- Added to get the Hostname
 
-# Global cache for MAC to prevent re-reading
+# Global cache
 _SYSTEM_MAC = None
 
 def get_system_mac():
     global _SYSTEM_MAC
-    if _SYSTEM_MAC: return _SYSTEM_MAC
-    mac = uuid.getnode()
-    _SYSTEM_MAC = ':'.join(("%012X" % mac)[i:i+2] for i in range(0, 12, 2))
-    return _SYSTEM_MAC
+    if _SYSTEM_MAC: 
+        return _SYSTEM_MAC
+    
+    try:
+        # Use the computer's hostname (e.g., "B6A526Cf") as the unique ID
+        # This matches the prefix you see in Home Assistant
+        host_id = socket.gethostname()
+        
+        # If for some reason hostname is empty, fallback to a static default
+        if not host_id:
+            host_id = "rtl-bridge-default"
+            
+        _SYSTEM_MAC = host_id
+        return _SYSTEM_MAC
+
+    except Exception:
+        return "rtl-bridge-error-id"
 
 def clean_mac(mac):
     """Cleans up MAC/ID string for use in topic/unique IDs."""
+    # Removes special characters to make it MQTT-safe
     cleaned = re.sub(r'[^A-Za-z0-9]', '', str(mac))
     return cleaned.lower() if cleaned else "unknown"
 
