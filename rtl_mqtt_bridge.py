@@ -47,22 +47,19 @@ BUFFER_LOCK = threading.Lock()
 
 # ---------------- HELPERS ----------------
 def get_version():
-    """
-    Retrieves the version string from config.yaml.
-    """
+    """Retrieves the version string from config.yaml."""
     try:
-        # Look for config.yaml in the same directory as this script
-        cfg_path = os.path.join(os.path.dirname(__file__), "config.yaml")
+        # Try finding config.yaml in the current directory
+        cfg_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "config.yaml")
         if os.path.exists(cfg_path):
             with open(cfg_path, "r") as f:
                 for line in f:
-                    # Look for line: version: "1.0.1"
                     if line.strip().startswith("version:"):
+                        # Extract version between quotes or after colon
                         ver = line.split(":", 1)[1].strip().replace('"', '').replace("'", "")
                         return f"v{ver}"
     except Exception:
         pass
-
     return "Unknown"
 
 def flatten(d, sep: str = "_") -> dict:
