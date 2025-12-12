@@ -68,8 +68,8 @@ def main():
     threading.Thread(target=processor.start_throttle_loop, daemon=True).start()
 
     # 3. GET SYSTEM IDENTITY
-    sys_id = get_system_mac().replace(":", "").lower()
-    sys_model = socket.gethostname().title()
+    sys_id = get_system_mac().replace(":", "").lower() 
+    sys_model = config.BRIDGE_NAME  # <--- No longer socket.gethostname()
     sys_name = f"{sys_model} ({sys_id})"
 
     # 4. PUBLISH VERSION ENTITY
