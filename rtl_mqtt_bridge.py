@@ -329,7 +329,7 @@ def rtl_loop(radio_config: dict, mqtt_handler: HomeNodeMQTT, sys_id: str, sys_mo
 
 def main():
     ver = get_version()
-    print(f"--- RTL-MQTT BRIDGE + SYSTEM MONITOR [{ver}] ---")
+    print(f"--- RTL-MQTT BRIDGE + SYSTEM MONITOR (Version: {ver}) ---")
 
     mqtt_handler = HomeNodeMQTT()
     mqtt_handler.start()
