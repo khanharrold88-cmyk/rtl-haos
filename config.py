@@ -35,13 +35,13 @@ class Settings(BaseSettings):
     )
 
     bridge_id: str = Field(
-        default="rtl-haos-host", 
-        description="Static unique ID for the bridge (overrides hostname)"
+        default="", 
+        description="Static unique ID for the bridge"
     )
 
     # NEW: Friendly Display Name
     bridge_name: str = Field(
-        default="rtl-haos-host", 
+        default="rtl-haos-bridge", 
         description="The friendly name shown in Home Assistant"
     )
 

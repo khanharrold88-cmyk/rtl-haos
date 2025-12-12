@@ -1,6 +1,6 @@
 name: "RTL-HAOS"
 description: "RTL-SDR to Home Assistant MQTT bridge with signal diagnostics and system monitoring"
-version: "1.0.12"
+version: "1.0.13"
 slug: rtl-haos
 url: "https://github.com/jaronmcd/rtl-haos"
 arch:
@@ -17,6 +17,8 @@ options:
   mqtt_port: 1883
   mqtt_user: ""
   mqtt_pass: ""
+  bridge_id: ""                   
+  bridge_name: "rtl-haos-bridge"
   rtl_expire_after: 600
   rtl_throttle_interval: 30
   debug_raw_json: false
@@ -30,6 +32,8 @@ schema:
   mqtt_port: port
   mqtt_user: str
   mqtt_pass: password
+  bridge_id: str
+  bridge_name: str
   rtl_expire_after: int
   rtl_throttle_interval: int
   debug_raw_json: bool
