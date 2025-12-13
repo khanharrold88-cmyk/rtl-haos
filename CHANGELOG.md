@@ -1,7 +1,7 @@
 # Changelog
-## v1.0.32a1
+## v1.0.32a2
 - **FIX:** Improved radio status will not become unavailable.
-
+- **NEW:** Added "-F", "log" so warnings/errors appear in stdout alongside the JSON data.
 ## v1.0.31
 - **NEW:** Added entity cleanup under host device.
 ## v1.0.19

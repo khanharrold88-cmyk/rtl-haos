@@ -86,9 +86,11 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
     sys_name = f"{sys_model} ({sys_id})"
 
     # CMD
+    # UPDATED: Added "-F", "log" so warnings/errors appear in stdout
+    # alongside the JSON data.
     cmd = [
         "rtl_433", "-d", f":{device_id}", "-f", frequency, "-s", sample_rate,
-        "-F", "json", "-M", "time:iso", "-M", "protocol", "-M", "level",
+        "-F", "json", "-F", "log", "-M", "time:iso", "-M", "protocol", "-M", "level",
     ]
 
     print(f"[RTL] Manager started for {radio_name}. Monitoring...")
