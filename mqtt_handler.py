@@ -119,7 +119,9 @@ class HomeNodeMQTT:
             if device_class in ["wind_direction"]:
                 payload["state_class"] = "measurement_angle"
 
-            payload["expire_after"] = config.RTL_EXPIRE_AFTER
+            # If it's a version sensor, DO NOT set an expiration time
+            if "version" not in sensor_name.lower():
+                payload["expire_after"] = config.RTL_EXPIRE_AFTER
             payload["availability_topic"] = self.TOPIC_AVAILABILITY
 
             config_topic = f"homeassistant/sensor/{unique_id}/config"
