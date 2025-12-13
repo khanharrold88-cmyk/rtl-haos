@@ -1,5 +1,6 @@
 # Changelog
-
+## v1.0.31
+- **NEW:** Added entity cleanup under host device.
 ## v1.0.19
 - **NEW:** Added `BRIDGE_ID` configuration to keep the Device ID static across reboots.
 - **NEW:** Added `BRIDGE_NAME` to allow custom friendly names (ignoring the Docker hostname).
