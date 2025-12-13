@@ -96,7 +96,7 @@ class HomeNodeMQTT:
         unique_id = f"rtl_bridge_nuke{config.ID_SUFFIX}"
         
         payload = {
-            "name": "⚠️ Nuke (Press 5x)",
+            "name": "Nuke Entities (Press 5x)",
             "command_topic": self.nuke_command_topic,
             "unique_id": unique_id,
             "icon": "mdi:delete-alert",
