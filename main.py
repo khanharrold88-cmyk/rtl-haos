@@ -9,6 +9,25 @@ DESCRIPTION:
   - Starts RTL Managers (Radios).
   - Starts System Monitor.
 """
+import builtins
+from datetime import datetime
+
+# --- 1. GLOBAL TIMESTAMP OVERRIDE ---
+# Save the original print function so we don't cause an infinite recursion
+_original_print = builtins.print
+
+def timestamped_print(*args, **kwargs):
+    """Adds a timestamp to every print() call."""
+    # Format: [2025-12-12 18:05:00]
+    now = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+    
+    # Pass the timestamp as the first argument to the original print
+    _original_print(now, *args, **kwargs)
+
+# Overwrite Python's built-in print with our new version
+builtins.print = timestamped_print
+# ------------------------------------
+
 import threading
 import time
 import sys
