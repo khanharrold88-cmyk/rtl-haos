@@ -4,7 +4,7 @@ DESCRIPTION:
   Manages the 'rtl_433' subprocess interactions.
   - rtl_loop(): The main thread that reads stdout from rtl_433.
   - discover_rtl_devices(): Auto-detects MULTIPLE USB sticks.
-  - UPDATED: Uses clean Capitalized Keys (Name, Frequency) to match UI Schema.
+  - UPDATED: Uses Capitalized Keys (Name, Frequency) to match clean UI Schema.
 """
 import subprocess
 import json
@@ -234,7 +234,7 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
                     now = time.time()
                     state["last_packet"] = now
                     
-                    # --- TOGGLEABLE BEHAVIOR ---
+                    # --- TOGGLEABLE BEHAVIOR (Uses getattr for safety) ---
                     show_timestamps = getattr(config, "RTL_SHOW_TIMESTAMPS", False)
 
                     if show_timestamps:
