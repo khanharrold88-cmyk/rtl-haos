@@ -27,11 +27,31 @@ configuration:
     description: >-
       If enabled, the Radio Status sensor will show "Last: HH:MM:SS" (updating every 5s).
       If disabled, it will show a static "Online" status (cleaner log).
+
   rtl_config:
     name: Radio Configuration
     description: >-
-      Advanced: Define multiple radios manually. List each radio with a 'name', 'freq', 
-      and optional 'id' (Serial Number), 'rate', or 'hop_interval'.
+      Advanced: Define multiple radios manually. Click 'Add' to configure a new stick.
+    keys:
+      name:
+        name: Radio Name
+        description: A short, friendly name (e.g., 'Weather', 'Utility'). Used in logs and sensor names.
+      freq:
+        name: Frequency
+        description: The frequency to listen on (e.g., '433.92M', '915M'). Don't forget the 'M'!
+      id:
+        name: Device Serial (Optional)
+        description: >-
+          The specific USB Serial Number (e.g., '101', '102') to use. 
+          Leave empty to auto-assign based on order.
+      rate:
+        name: Sample Rate (Optional)
+        description: Default is '250k'. Only change if you know what you are doing.
+      hop_interval:
+        name: Hop Interval (Optional)
+        description: If listening to multiple frequencies on one radio, how often to switch (in seconds).
+  # ---------------------
+
   rtl_expire_after:
     name: Sensor Expiry
     description: >-
