@@ -4,6 +4,7 @@ DESCRIPTION:
   Manages the 'rtl_433' subprocess interactions.
   - rtl_loop(): The main thread that reads stdout from rtl_433.
   - discover_rtl_devices(): Auto-detects MULTIPLE USB sticks.
+  - UPDATED: Now prefers Device Index (-d 0) over Serial (-d :102) for stability.
 """
 import subprocess
 import json
@@ -39,7 +40,7 @@ def is_blocked_device(clean_id: str, model: str) -> bool:
 def discover_rtl_devices():
     """
     Scans for ALL connected RTL-SDR devices by iterating indices (0-7).
-    Returns a list of dicts: [{'id': '102', 'name': 'RTL_102'}, ...]
+    Returns a list of dicts: [{'id': '102', 'name': 'RTL_102', 'index': 0}, ...]
     """
     devices = []
     index = 0
@@ -78,14 +79,19 @@ def discover_rtl_devices():
             print(f"[STARTUP] Found RTL-SDR at index {index}: Serial {serial}")
             devices.append({
                 "name": f"RTL_{serial}",
-                "id": serial
+                "id": serial,
+                "index": index  # <--- SAVE THE INDEX
             })
         else:
             # Device exists but serial couldn't be read?
             # Assume valid if exit code 0
             if proc.returncode == 0:
                 fallback_id = str(index)
-                devices.append({"name": f"RTL_Index_{index}", "id": fallback_id})
+                devices.append({
+                    "name": f"RTL_Index_{index}", 
+                    "id": fallback_id,
+                    "index": index # <--- SAVE THE INDEX
+                })
 
         index += 1
 
@@ -97,6 +103,8 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
     Parses JSON output and passes it to data_processor.dispatch_reading().
     """
     device_id = radio_config.get("id")
+    device_index = radio_config.get("index") # <--- RETRIEVE INDEX
+    
     naming_id = device_id if device_id else "0"
 
     radio_name = radio_config.get("name", f"RTL_{naming_id}")
@@ -120,8 +128,14 @@ def rtl_loop(radio_config: dict, mqtt_handler, data_processor, sys_id: str, sys_
 
     cmd = ["rtl_433"]
     
-    if device_id:
+    # --- UPDATED SELECTION LOGIC ---
+    # Prioritize Index (-d 0) if known, as it is more robust than Serial (-d :102)
+    if device_index is not None:
+        cmd.extend(["-d", str(device_index)])
+        print(f"[{radio_name}] Selecting by Index: {device_index}")
+    elif device_id:
         cmd.extend(["-d", f":{device_id}"])
+        print(f"[{radio_name}] Selecting by Serial: {device_id}")
 
     for f in frequencies:
         cmd.extend(["-f", f])
