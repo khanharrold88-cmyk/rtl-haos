@@ -8,14 +8,13 @@ DESCRIPTION:
   - Starts Data Processor (Throttling).
   - Starts RTL Managers (Radios).
   - Starts System Monitor.
-  - UPDATED: COMPATIBILITY MODE. Uses basic Octal ANSI codes (No Bold, No Xterm).
+  - UPDATED: "Cool & Calm" Palette. Cyan Timestamps, Green System Tags, Magenta Data.
 """
 import os
 import sys
 import re
 
 # --- 0. FORCE COLOR ENVIRONMENT ---
-# Even in compatibility mode, these help Python output cleanly
 os.environ["TERM"] = "xterm-256color"
 os.environ["CLICOLOR_FORCE"] = "1"
 
@@ -27,16 +26,13 @@ import importlib.util
 import subprocess
 
 # --- 1. GLOBAL LOGGING & COLOR SETUP ---
-# Basic ANSI Colors (Octal \033). 
-# We removed the "1;" (Bold) to ensure maximum compatibility.
-
-c_cyan    = "\033[36m"   # Cyan (TX / MQTT)
-c_blue    = "\033[34m"   # Blue (DEBUG / RTL)
-c_magenta = "\033[35m"   # Magenta (Sources / Throttle)
-c_green   = "\033[32m"   # Green (INFO / Startup)
+# Standard ANSI Codes (Safe for HAOS)
+c_cyan    = "\033[36m"   # Cyan (Timestamp - Calm & Readable)
+c_magenta = "\033[35m"   # Magenta (Radio Data / TX)
+c_green   = "\033[32m"   # Green (System Sources / INFO - "All Good")
+c_blue    = "\033[34m"   # Blue (DEBUG)
 c_yellow  = "\033[33m"   # Yellow (WARN)
-c_red     = "\033[31m"   # Red (ERROR / Nuke)
-c_white   = "\033[37m"   # Standard White (Timestamp)
+c_red     = "\033[31m"   # Red (ERROR)
 c_reset   = "\033[0m"
 
 _original_print = builtins.print
@@ -47,22 +43,25 @@ def get_source_color(tag_text):
     """
     clean = tag_text.lower().replace("[", "").replace("]", "")
     
-    # Infrastructure Tags -> Cyan/Blue
-    if "mqtt" in clean: return c_cyan
-    if "rtl" in clean: return c_blue
+    # Infrastructure -> Green (Implies "System Healthy")
+    if "mqtt" in clean: return c_green
+    if "rtl" in clean: return c_green
     if "startup" in clean: return c_green
+    if "throttle" in clean: return c_green
+    
+    # Destructive -> Red
     if "nuke" in clean: return c_red
     
-    # Data Processing / Radios -> Magenta
+    # Radio Data / IDs -> Magenta (Distinct Data Layer)
     return c_magenta
 
 def timestamped_print(*args, **kwargs):
     """
-    Smart Logging v9 (Compatibility Mode):
-    Uses strict regex and basic colors to ensure visibility in HAOS logs.
+    Smart Logging v10 (Cool Palette):
     """
     now = datetime.now().strftime("%H:%M:%S")
-    time_prefix = f"{c_white}[{now}]{c_reset}"
+    # Timestamp is now Cyan (Readable, not alarming, not boring white)
+    time_prefix = f"{c_cyan}[{now}]{c_reset}"
     
     msg = " ".join(map(str, args))
     lower_msg = msg.lower()
@@ -83,12 +82,11 @@ def timestamped_print(*args, **kwargs):
     # C. DEBUG (Blue)
     elif "debug" in lower_msg:
         header = f"{c_blue}DEBUG:{c_reset}"
-        # Remove explicitly passed tags from rtl_manager
         msg = msg.replace("[DEBUG]", "").replace("[debug]", "").strip()
 
-    # D. TX (Cyan)
+    # D. TX (Magenta) - Matches Radio Data
     elif "-> tx" in lower_msg:
-        header = f"{c_cyan}TX:   {c_reset}"
+        header = f"{c_magenta}TX:   {c_reset}"
         msg = msg.replace("-> TX", "").strip()
         
         # Parse specialized TX format: "rtl-bridge... [source]: value"
@@ -97,7 +95,7 @@ def timestamped_print(*args, **kwargs):
             src_tag = match.group(1)
             val = match.group(2)
             
-            # Color the source based on origin
+            # Color the source
             s_color = get_source_color(src_tag)
             msg = f"{s_color}{src_tag}{c_reset} {val}"
 
