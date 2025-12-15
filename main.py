@@ -8,7 +8,7 @@ DESCRIPTION:
   - Starts Data Processor (Throttling).
   - Starts RTL Managers (Radios).
   - Starts System Monitor.
-  - UPDATED: Switched 'c_purple' to INVERTED BOLD MAGENTA (Badge Style) for maximum pop.
+  - UPDATED: Removed "Block" style. Trying Xterm-256 'Hot Pink' (201) for vibrancy.
 """
 import os
 import sys
@@ -26,16 +26,14 @@ import importlib.util
 import subprocess
 
 # --- 1. GLOBAL LOGGING & COLOR SETUP ---
-# "1" = Bold/Bright
-# "7" = Inverse (Swap Foreground/Background) - Creates a "Badge" look
-
-c_cyan    = "\x1b[1;36m"     # Bold Cyan
-c_blue    = "\x1b[1;34m"     # Bold Blue
-c_purple  = "\x1b[1;35;7m"   # INVERTED Bold Magenta (Solid Block / Badge)
-c_green   = "\x1b[1;32m"     # Bold Green
-c_yellow  = "\x1b[1;33m"     # Bold Yellow
-c_red     = "\x1b[1;31m"     # Bold Red
-c_white   = "\x1b[37m"       # Standard White (Timestamp)
+# using xterm-256 color codes for maximum vibrancy where supported
+c_cyan    = "\x1b[1;36m"        # Bold Cyan
+c_blue    = "\x1b[1;34m"        # Bold Blue
+c_purple  = "\x1b[38;5;201m"    # Xterm Hot Pink (Code 201) - Vibrant!
+c_green   = "\x1b[1;32m"        # Bold Green
+c_yellow  = "\x1b[1;33m"        # Bold Yellow
+c_red     = "\x1b[1;31m"        # Bold Red
+c_white   = "\x1b[37m"          # Standard White (Dimmer)
 c_reset   = "\x1b[0m"
 
 _original_print = builtins.print
@@ -46,26 +44,21 @@ def get_source_color(tag_text):
     """
     clean = tag_text.lower().replace("[", "").replace("]", "")
     
-    # Infrastructure Tags (Keep text-only to avoid visual clutter?)
-    # For consistency, let's keep infrastructure distinct.
-    
+    # Infrastructure Tags
     if "mqtt" in clean: return c_cyan
     if "rtl" in clean: return c_blue
     if "startup" in clean: return c_green
     if "nuke" in clean: return c_red
     
-    # Data Processing Tags (Apply the new Badge)
+    # Data Processing Tags
     if "throttle" in clean: return c_purple
     
-    # Default (Radio IDs like [915], [433], [SourceID]) - Apply Badge
+    # Default (Radio IDs like [915], [433], [SourceID])
     return c_purple
 
 def timestamped_print(*args, **kwargs):
     """
-    Smart Logging v6 (Badge Style):
-    1. Detect Header Level.
-    2. Detect [Source].
-    3. Apply Inverted Color to [Radio] sources to make them pop.
+    Smart Logging v7 (Xterm Colors):
     """
     now = datetime.now().strftime("%H:%M:%S")
     time_prefix = f"{c_white}[{now}]{c_reset}"
@@ -158,7 +151,7 @@ def get_version():
     return "Unknown"
 
 def show_logo(version):
-    """Prints the ASCII logo (Blue) and Subtitle (Purple/Yellow)."""
+    """Prints the ASCII logo (Blue) and Subtitle (Hot Pink/Yellow)."""
     logo_lines = [
         r"   ____  _____  _         _   _    _    ___  ____  ",
         r"  |  _ \|_   _|| |       | | | |  / \  / _ \/ ___| ",
@@ -174,7 +167,7 @@ def show_logo(version):
     # 2. SPACER
     sys.stdout.write("\n")
     
-    # 3. Print Subtitle: BOLD Purple & Yellow
+    # 3. Print Subtitle: Hot Pink & Yellow
     sys.stdout.write(
         f"{c_purple}>>> RTL-SDR Bridge for Home Assistant ({c_reset}"
         f"{c_yellow}{version}{c_reset}"
