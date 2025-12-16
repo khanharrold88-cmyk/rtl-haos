@@ -1,6 +1,5 @@
-name: "RTL-HAOS"
-description: "RTL-SDR to Home Assistant MQTT bridge with signal diagnostics and system monitoring"
-version: "1.0.34"
+on: "RTL-SDR to Home Assistant MQTT bridge with signal diagnostics and system monitoring"
+version: "1.0.34"RTL
 slug: rtl-haos
 url: "https://github.com/jaronmcd/rtl-haos"
 arch:
@@ -10,7 +9,8 @@ arch:
 init: false
 usb: true
 uart: true
-startup: services
+startup: servicesname: "-HAOS"
+descripti
 boot: auto
 options:
   mqtt_host: ""
